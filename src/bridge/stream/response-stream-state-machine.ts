@@ -199,9 +199,15 @@ export class ResponseStreamStateMachine {
 		this.assertNoPendingFinish("toolCall");
 
 		const block = this.ensureToolCallBlock(delta);
-		if (delta.id !== undefined) block.callId = delta.id;
-		if (delta.name !== undefined) block.providerName = delta.name;
-		if (delta.type !== undefined) block.providerType = delta.type;
+		// Truthy check, not `!== undefined`: some OpenAI-compat upstreams
+		// (e.g. dashscope) emit `id: ""` and `name: ""` on subsequent
+		// tool_call delta chunks after the first one. Treating empty string
+		// as "no update" prevents overwriting the real callId/providerName
+		// established by the first chunk, which would otherwise trigger
+		// BRIDGE_STREAM_INCOMPLETE_TOOL_CALL at close time.
+		if (delta.id) block.callId = delta.id;
+		if (delta.name) block.providerName = delta.name;
+		if (delta.type) block.providerType = delta.type;
 
 		const events: ResponseStreamEvent[] = [];
 		if (!this.output[block.outputIndex]) {
